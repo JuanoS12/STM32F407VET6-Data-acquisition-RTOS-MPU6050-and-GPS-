@@ -1,0 +1,65 @@
+/* USER CODE BEGIN Header */
+/**
+  ******************************************************************************
+  * @file    telemetry_globals.c
+  * @brief   Global shared data structures implementation
+  ******************************************************************************
+  * @attention
+  *
+  * Copyright (c) 2025 STMicroelectronics.
+  * All rights reserved.
+  *
+  * This software is licensed under terms that can be found in the LICENSE file
+  * in the root directory of this software component.
+  * If no LICENSE file comes with this software, it is provided AS-IS.
+  *
+  ******************************************************************************
+  */
+/* USER CODE END Header */
+
+/* Includes ------------------------------------------------------------------*/
+#include "telemetry_globals.h"
+#include "system_config.h"
+#include <string.h>
+
+/* Private variables ---------------------------------------------------------*/
+IMU_Data_t imu_data;
+GPS_Data_t gps_data;
+System_Status_t sys_status;
+
+osMutexDef(MUTEX_I2C);
+osMutexDef(MUTEX_TELEMETRY);
+
+osMutexId MUTEX_I2CHandle;
+osMutexId MUTEX_TELEMETRYHandle;
+
+StreamBufferHandle_t SB_GPS;
+
+/* Private function prototypes -----------------------------------------------*/
+
+/* Private user code ---------------------------------------------------------*/
+
+/**
+  * @brief  Initialize global data structures and synchronization objects
+  * @retval None
+  */
+void TelemetryGlobals_Init(void)
+{
+  /* Initialize data structures */
+  memset(&imu_data, 0, sizeof(IMU_Data_t));
+  memset(&gps_data, 0, sizeof(GPS_Data_t));
+  memset(&sys_status, 0, sizeof(System_Status_t));
+  
+  /* Initialize status */
+  sys_status.imu_ok = 0;
+  sys_status.gps_ok = 0;
+  sys_status.system_ok = 0;
+  
+  /* Create mutexes */
+  MUTEX_I2CHandle = osMutexCreate(osMutex(MUTEX_I2C));
+  MUTEX_TELEMETRYHandle = osMutexCreate(osMutex(MUTEX_TELEMETRY));
+  
+  /* Create GPS stream buffer */
+  SB_GPS = xStreamBufferCreate(GPS_STREAM_BUF_SIZE, 1);
+}
+
