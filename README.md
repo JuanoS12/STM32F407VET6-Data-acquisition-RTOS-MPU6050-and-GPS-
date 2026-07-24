@@ -49,14 +49,14 @@ Telemetry/
 ├── Core/
 │   ├── Inc/                    # Header files
 │   ├── Src/                    # Source files
-│   │   ├── main.c             # Main program & clock config
-│   │   ├── freertos.c         # FreeRTOS tasks
-│   │   ├── gpio.c             # GPIO configuration
-│   │   ├── i2c.c              # I2C configuration
-│   │   ├── spi.c              # SPI configuration
-│   │   ├── usart.c            # UART configuration
-│   │   └── ...
-│   └── PROJECT_DOCUMENTATION.tex  # Complete technical docs
+│       ├── main.c             # Main program & clock config
+│       ├── freertos.c         # FreeRTOS tasks
+│       ├── gpio.c             # GPIO configuration
+│       ├── i2c.c              # I2C configuration
+│       ├── spi.c              # SPI configuration
+│       ├── usart.c            # UART configuration
+│       └── ...
+│── PROJECT_DOCUMENTATION.tex  # Complete technical docs
 ├── Drivers/                    # STM32 HAL drivers
 ├── Middlewares/                # FreeRTOS
 ├── USB_DEVICE/                 # USB CDC implementation
