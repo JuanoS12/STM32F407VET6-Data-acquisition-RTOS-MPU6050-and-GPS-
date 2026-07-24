@@ -1,5 +1,5 @@
 # STM32F407VET6-Data-acquisition-RTOS-MPU6050-and-GPS-
-# STM32F407 Telemetry System
+# STM32F407 Data acquisition System
 
 ## Documentation
 
