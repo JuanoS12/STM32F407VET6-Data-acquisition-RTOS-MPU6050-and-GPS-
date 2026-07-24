@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Real-Time Telemetry Map</title>
+
+  <!-- Leaflet for the map -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+  <!-- MQTT over WebSockets -->
+  <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+
+  <!-- Chart.js for real-time plots -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <style>
+    body, html {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      font-family: Arial, sans-serif;
+      overflow: hidden;
+    }
+
+    /* Layout: top = map, bottom = charts + IMU cube */
+    #top {
+      height: 60%;
+      width: 100%;
+      position: relative;
+    }
+
+    #bottom {
+      height: 40%;
+      width: 100%;
+      display: flex;
+      flex-direction: row;
+      box-sizing: border-box;
+    }
+
+    #map {
+      width: 100%;
+      height: 100%;
+    }
+
+    .info {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      background: white;
+      padding: 10px 14px;
+      border-radius: 10px;
+      box-shadow: 0 0 10px #0004;
+      z-index: 1000;
+      line-height: 1.3em;
+      font-size: 13px;
+    }
+
+    #charts {
+      flex: 2;
+      padding: 10px;
+      box-sizing: border-box;
+      background: #f5f5f5;
+    }
+
+    #imu-visual {
+      flex: 1;
+      padding: 10px;
+      box-sizing: border-box;
+      background: #e9eef5;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+
+    #imu-title {
+      font-weight: bold;
+      margin-bottom: 8px;
+    }
+
+    /* Simple 3D cube for IMU orientation */
+    .cube-container {
+      width: 150px;
+      height: 150px;
+      perspective: 600px;
+    }
+
+    .cube {
+      width: 100%;
+      height: 100%;
+      position: relative;
+      transform-style: preserve-3d;
+      transition: transform 0.1s linear;
+    }
+
+    .cube-face {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 150, 255, 0.2);
+      border: 2px solid rgba(0, 0, 0, 0.4);
+      box-sizing: border-box;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: bold;
+    }
+
+    .cube-face.front  { transform: translateZ(75px); }
+    .cube-face.back   { transform: rotateY(180deg) translateZ(75px); }
+    .cube-face.right  { transform: rotateY(90deg) translateZ(75px); }
+    .cube-face.left   { transform: rotateY(-90deg) translateZ(75px); }
+    .cube-face.top    { transform: rotateX(90deg) translateZ(75px); }
+    .cube-face.bottom { transform: rotateX(-90deg) translateZ(75px); }
+
+    #imu-values {
+      margin-top: 8px;
+      font-size: 12px;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+
+<div id="top">
+  <div id="map"></div>
+
+  <div class="info">
+    <b>Status:</b> <span id="status">Connecting...</span><br>
+    <b>Lat:</b> <span id="lat">--</span><br>
+    <b>Lon:</b> <span id="lon">--</span><br>
+    <b>Speed:</b> <span id="speed">--</span> m/s<br>
+    <b>Pitch:</b> <span id="pitch">--</span><br>
+    <b>Roll:</b> <span id="roll">--</span><br>
+    <b>Yaw:</b> <span id="yaw">--</span><br>
+    <b>Altitude:</b> <span id="alt">--</span> m<br>
+    <b>GPS Fix:</b> <span id="fix">--</span>
+  </div>
+</div>
+
+<div id="bottom">
+  <div id="charts">
+    <canvas id="telemetryChart"></canvas>
+  </div>
+
+  <div id="imu-visual">
+    <div id="imu-title">IMU Orientation</div>
+    <div class="cube-container">
+      <div id="cube" class="cube">
+        <div class="cube-face front">FRONT</div>
+        <div class="cube-face back">BACK</div>
+        <div class="cube-face right">RIGHT</div>
+        <div class="cube-face left">LEFT</div>
+        <div class="cube-face top">TOP</div>
+        <div class="cube-face bottom">BOTTOM</div>
+      </div>
+    </div>
+    <div id="imu-values">
+      Pitch: <span id="imu-pitch">--</span>°<br>
+      Roll: <span id="imu-roll">--</span>°<br>
+      Yaw: <span id="imu-yaw">--</span>°
+    </div>
+  </div>
+</div>
+
+<script>
+  // -------------------------------------------------------------
+  // 1. Leaflet Map + Path History
+  // -------------------------------------------------------------
+  const map = L.map("map").setView([20.0, -100.0], 15);
+
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 19
+  }).addTo(map);
+
+  let marker = L.marker([20.0, -100.0]).addTo(map);
+
+  // Polyline for the path history
+  const pathPoints = [];
+  const pathLine = L.polyline(pathPoints, { weight: 3 }).addTo(map);
+
+  // UI references
+  const st  = document.getElementById("status");
+  const latBox = document.getElementById("lat");
+  const lonBox = document.getElementById("lon");
+  const speedBox = document.getElementById("speed");
+  const pitchBox = document.getElementById("pitch");
+  const rollBox = document.getElementById("roll");
+  const yawBox = document.getElementById("yaw");
+  const altBox = document.getElementById("alt");
+  const fixBox = document.getElementById("fix");
+
+  const cube = document.getElementById("cube");
+  const imuPitchSpan = document.getElementById("imu-pitch");
+  const imuRollSpan  = document.getElementById("imu-roll");
+  const imuYawSpan   = document.getElementById("imu-yaw");
+
+  // -------------------------------------------------------------
+  // 2. Chart.js - Telemetry Chart (Speed, Alt, Pitch, Roll)
+  // -------------------------------------------------------------
+  const ctx = document.getElementById("telemetryChart").getContext("2d");
+  const maxPoints = 100;   // number of samples kept in the chart
+
+  const chartData = {
+    labels: [],  // simple sample index
+    datasets: [
+      {
+        label: "Speed (m/s)",
+        data: [],
+        yAxisID: "y",
+        tension: 0.2
+      },
+      {
+        label: "Altitude (m)",
+        data: [],
+        yAxisID: "y",
+        tension: 0.2
+      },
+      {
+        label: "Pitch (deg)",
+        data: [],
+        yAxisID: "y1",
+        tension: 0.2
+      },
+      {
+        label: "Roll (deg)",
+        data: [],
+        yAxisID: "y1",
+        tension: 0.2
+      }
+    ]
+  };
+
+  const telemetryChart = new Chart(ctx, {
+    type: "line",
+    data: chartData,
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: false,
+      interaction: {
+        mode: "index",
+        intersect: false
+      },
+      plugins: {
+        legend: {
+          display: true
+        }
+      },
+      scales: {
+        x: {
+          display: true,
+          title: {
+            display: true,
+            text: "Sample"
+          }
+        },
+        y: {
+          type: "linear",
+          position: "left",
+          title: {
+            display: true,
+            text: "Speed / Altitude"
+          }
+        },
+        y1: {
+          type: "linear",
+          position: "right",
+          title: {
+            display: true,
+            text: "Pitch / Roll (deg)"
+          },
+          grid: {
+            drawOnChartArea: false
+          }
+        }
+      }
+    }
+  });
+
+  let sampleIndex = 0;
+
+  function pushTelemetryToChart(speed, alt, pitch, roll) {
+    chartData.labels.push(sampleIndex++);
+    chartData.datasets[0].data.push(speed);
+    chartData.datasets[1].data.push(alt);
+    chartData.datasets[2].data.push(pitch);
+    chartData.datasets[3].data.push(roll);
+
+    // Limit number of points
+    if (chartData.labels.length > maxPoints) {
+      chartData.labels.shift();
+      chartData.datasets.forEach(ds => ds.data.shift());
+    }
+
+    telemetryChart.update();
+  }
+
+  // -------------------------------------------------------------
+  // 3. MQTT WebSocket Connection (EMQX)
+  // -------------------------------------------------------------
+  const brokerURL = "wss://broker.emqx.io:8084/mqtt";
+
+  const client = mqtt.connect(brokerURL, {
+    username: "telemetry",
+    password: "telemetria",
+    reconnectPeriod: 2000,
+    keepalive: 60
+  });
+
+  client.on("connect", () => {
+    st.textContent = "Connected to MQTT";
+    client.subscribe("MPU");
+  });
+
+  client.on("error", () => {
+    st.textContent = "MQTT Error";
+  });
+
+  client.on("offline", () => {
+    st.textContent = "Offline";
+  });
+
+  // -------------------------------------------------------------
+  // 4. Handle incoming messages: map + charts + IMU cube
+  // -------------------------------------------------------------
+  client.on("message", (topic, msg) => {
+    let data = {};
+    try {
+      data = JSON.parse(msg.toString());
+    } catch (e) {
+      console.error("Invalid JSON:", msg.toString());
+      return;
+    }
+
+    const lat  = data.lat;
+    const lon  = data.lon;
+    const spd  = data.speed ?? 0;
+    const pit  = data.pitch ?? 0;
+    const rol  = data.roll ?? 0;
+    const yaw  = data.yaw ?? 0;
+    const alt  = data.alt ?? 0;
+    const fix  = data.gps_fix;
+
+    // Validate gps
+    if (!lat || !lon || lat === 0 || lon === 0) return;
+
+    // ---- Map + Path ----
+    const newPoint = [lat, lon];
+    marker.setLatLng(newPoint);
+    map.panTo(newPoint);
+
+    pathPoints.push(newPoint);
+    pathLine.setLatLngs(pathPoints);
+
+    // ---- Info box ----
+    latBox.textContent = lat.toFixed(6);
+    lonBox.textContent = lon.toFixed(6);
+    speedBox.textContent = spd.toFixed(2);
+    pitchBox.textContent = pit.toFixed(2);
+    rollBox.textContent = rol.toFixed(2);
+    yawBox.textContent = yaw.toFixed(2);
+    altBox.textContent = alt.toFixed(2);
+
+    if (fix === 1) {
+      fixBox.textContent = "Yes";
+      fixBox.style.color = "green";
+    } else {
+      fixBox.textContent = "No";
+      fixBox.style.color = "red";
+    }
+
+    // ---- IMU cube orientation ----
+    imuPitchSpan.textContent = pit.toFixed(1);
+    imuRollSpan.textContent  = rol.toFixed(1);
+    imuYawSpan.textContent   = yaw.toFixed(1);
+
+    // Simple mapping: pitch -> X, roll -> Z, yaw -> Y
+    const pitchDeg = pit;   // deg
+    const rollDeg  = rol;
+    const yawDeg   = yaw;
+
+    cube.style.transform =
+      "rotateX(" + (-pitchDeg) + "deg) " +
+      "rotateZ(" + rollDeg + "deg) " +
+      "rotateY(" + yawDeg + "deg)";
+
+    // ---- Chart update ----
+    pushTelemetryToChart(spd, alt, pit, rol);
+  });
+</script>
+
+</body>
+</html>
