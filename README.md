@@ -3,6 +3,8 @@
 
 ## Documentation
 
+This document provides comprehensive technical documentation for a production-ready telemetry system based on the STM32F407VETx microcontroller. The system implements a fault-tolerant, scalable architecture using FreeRTOS for real-time task management, collecting data from multiple sensors (IMU, GPS) and transmitting telemetry via SPI.
+
 This project has comprehensive documentation in multiple formats:
 
 ### 📄 LaTeX Documentation (Primary)
