@@ -6,7 +6,7 @@
 This project has comprehensive documentation in multiple formats:
 
 ### 📄 LaTeX Documentation (Primary)
-**File:** [`Core/PROJECT_DOCUMENTATION.tex`](Core/PROJECT_DOCUMENTATION.tex)
+**File:** [`PROJECT_DOCUMENTATION.tex`](PROJECT_DOCUMENTATION.tex)
 
 This is the **primary technical documentation** that must be kept up-to-date with all changes.
 
@@ -103,7 +103,7 @@ Telemetry/
 When making changes to the project:
 
 1. ✅ Update code files
-2. ✅ Update `Core/PROJECT_DOCUMENTATION.tex` (Section 2 for hardware)
+2. ✅ Update `PROJECT_DOCUMENTATION.tex` (Section 2 for hardware)
 3. ✅ Update `PINOUT.md` if pin assignments change
 4. ✅ Rebuild LaTeX documentation to generate PDF
 
