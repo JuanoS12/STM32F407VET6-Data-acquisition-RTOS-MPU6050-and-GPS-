@@ -70,7 +70,7 @@ Telemetry/
 ## Quick Start
 
 1. **Hardware Setup:**
-   - Connect MPU6050 to I2C2 (PB10/PB11) with 4.7kΩ pull-ups
+   - Connect MPU6050 to I2C2 (PB10/PB11) 
    - Connect GPS to USART2 (PA2/PA3)
    - Connect ESP32 to SPI2 (PC2/PC3/PB13/PB12)
    - Connect USB-to-TTL adapter to USART3 (PD8/PD9) for debug output
@@ -95,7 +95,6 @@ Telemetry/
 
 ## Important Notes
 
-⚠️ **I2C Pull-ups Required:** External 4.7kΩ resistors on PB10 and PB11
 ⚠️ **SPI CS Control:** PB12 must be HIGH when idle
 ⚠️ **USB Re-enumeration:** PA12 driven LOW for 100ms at startup
 ⚠️ **GPS DMA:** USART2 uses DMA for efficient reception
